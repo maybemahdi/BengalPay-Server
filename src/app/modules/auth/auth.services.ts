@@ -5,22 +5,37 @@ import { ILoginUser, IRegisterUser } from "./auth.interface";
 import httpStatus from "http-status";
 import { createToken } from "./auth.utils";
 import config from "../../config";
+import bcrypt from "bcrypt";
 
 const registerUserIntoDB = async (payload: IRegisterUser) => {
+  const isPhoneExists = await User.isUserExistsByCustomPhone(payload.phone);
+  if (isPhoneExists) {
+    throw new AppError(httpStatus.CONFLICT, "Phone number already registered!");
+  }
+  const isEmailExists = await User.isUserExistsByCustomEmail(payload.email);
+  if (isEmailExists) {
+    throw new AppError(httpStatus.CONFLICT, "Email number already registered!");
+  }
+  const isNidExists = await User.findOne({ nid: payload.nid });
+  if (isNidExists) {
+    throw new AppError(httpStatus.CONFLICT, "Nid already registered!");
+  }
   const result = await User.create(payload);
   return {
     _id: result?._id,
     name: result?.name,
     email: result?.email,
+    phone: result?.phone,
+    nid: result?.nid,
   };
 };
 
 const loginUser = async (payload: ILoginUser) => {
   // checking if the user is exist
-  const user = await User.isUserExistsByCustomEmail(payload.email);
+  const user = await User.isUserExistsByCustomPhone(payload.phone);
 
   if (!user) {
-    throw new AppError(httpStatus.UNAUTHORIZED, "Invalid credentials");
+    throw new AppError(httpStatus.NOT_FOUND, "User not found");
   }
   // checking if the user is already deleted
 
@@ -29,18 +44,24 @@ const loginUser = async (payload: ILoginUser) => {
   if (isBlocked) {
     throw new AppError(httpStatus.UNAUTHORIZED, "This user is blocked!");
   }
+  const isDeleted = user?.isDeleted;
 
-  //checking if the password is correct
+  if (isDeleted) {
+    throw new AppError(httpStatus.NOT_FOUND, "User Not Found!");
+  }
 
-  if (!(await User.isPasswordMatched(payload?.password, user?.password)))
+  const isPinMatched = await User.isPinMatched(payload?.pin, user?.pin);
+  if (!isPinMatched) {
     throw new AppError(httpStatus.UNAUTHORIZED, "Invalid credentials");
+  }
 
   //create token and sent to the  client
 
   const jwtPayload = {
-    id: user._id,
+    id: user._id as string,
     name: user.name,
     email: user.email,
+    phone: user.phone,
     role: user.role as string,
   };
 
@@ -51,45 +72,49 @@ const loginUser = async (payload: ILoginUser) => {
   );
 
   return {
-    id: user._id,
-    name: user.name,
-    email: user.email,
-    role: user.role as string,
+    data: {
+      id: user._id as string,
+      name: user.name,
+      email: user.email,
+      phone: user.email,
+      role: user.role as string,
+    },
     accessToken,
   };
 };
 
-const changePassword = async (
+const changePin = async (
   payload: {
-    currentPassword: string;
-    newPassword: string;
+    phone: string;
+    currentPin: string;
+    newPin: string;
   },
   user: any,
 ) => {
-  const { currentPassword, newPassword } = payload;
-  const userForCheck = await User.findById(user?.id).select("+password");
-  // Check if the current password matches
-  if (!userForCheck?.password) {
-    throw new AppError(httpStatus.UNAUTHORIZED, "Password not found");
+  const { currentPin, newPin } = payload;
+  const userForCheck = await User.findById(user?.id).select("+pin");
+  if (!userForCheck) {
+    throw new AppError(httpStatus.UNAUTHORIZED, "User not found");
   }
-  const isPasswordMatched = await User.isPasswordMatched(
-    currentPassword,
-    userForCheck.password,
-  );
-  if (!isPasswordMatched) {
+  // Check if the current pin matches
+  const isPinMatched = await User.isPinMatched(currentPin, userForCheck.pin);
+  if (!isPinMatched) {
     return {
       success: false,
-      message: "Current password is incorrect",
+      message: "Current pin is incorrect",
     };
   }
 
-  // Update the password
-  userForCheck.password = newPassword;
+  // Update the pin
+  userForCheck.pin = await bcrypt.hash(
+    newPin,
+    Number(config.bcrypt_salt_rounds),
+  );
   await userForCheck.save();
 
   return {
     success: true,
-    message: "Password changed successfully",
+    message: "Pin changed successfully",
   };
 };
 
@@ -108,6 +133,6 @@ const updatedUserStatus = async (payload: { id: string; status: boolean }) => {
 export const AuthService = {
   registerUserIntoDB,
   loginUser,
-  changePassword,
+  changePin,
   updatedUserStatus,
 };

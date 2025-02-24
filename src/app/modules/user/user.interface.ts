@@ -3,25 +3,50 @@
 import { Model } from "mongoose";
 import { USER_ROLE } from "./user.constant";
 
+// user.interface.ts
+
 export interface IUser {
-  [x: string]: any;
+  _id?: string
   name: string;
   email: string;
-  password: string;
-  role?: string;
-  isBlocked?: boolean;
+  phone: string;
+  pin: string;
+  role: string;
+  nid: string;
+  balance: number;
+  isVerified: boolean;
+  isBlocked: boolean;
+  isDeleted: boolean;
+}
+
+// Agent interface extends IUser with additional properties specific to agents
+export interface IAgent extends IUser {
+  approved: boolean;
+  income: number;
+}
+
+// Transaction interface for recording transaction details
+export interface ITransaction {
+  transactionId: string;
+  from: string;
+  to: string;
+  amount: number;
+  fee: number;
+  type: "SendMoney" | "CashIn" | "CashOut";
+  status: "Pending" | "Completed";
 }
 
 export interface UserModel extends Model<IUser> {
   //instance methods for checking if the user exist
   isUserExistsByCustomEmail(email: string): Promise<IUser>;
+  isUserExistsByCustomPhone(number: string): Promise<IUser>;
   //instance methods for checking if passwords are matched
-  isPasswordMatched(
+  isPinMatched(
     plainTextPassword: string,
     hashedPassword: string,
   ): Promise<boolean>;
-  isJWTIssuedBeforePasswordChanged(
-    passwordChangedTimestamp: Date,
+  isJWTIssuedBeforePinChanged(
+    pinChangedTimestamp: Date,
     jwtIssuedTimestamp: number,
   ): boolean;
 }

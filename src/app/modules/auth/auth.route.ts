@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { AuthController } from "./auth.controller";
 import validateRequest from "../../middlewares/validateRequest";
-import { loginUserValidation, registerUserValidation } from "./auth.validation";
+import { changePinValidation, loginUserValidation, registerUserValidation } from "./auth.validation";
 import auth from "../../middlewares/auth";
+import { USER_ROLE } from "../user/user.constant";
 
 const AuthRoutes = Router();
 
@@ -16,14 +17,15 @@ AuthRoutes.post(
   validateRequest(loginUserValidation),
   AuthController.loginUser,
 );
-AuthRoutes.post(
-  "/change-password",
-  auth("user", "admin"),
-  AuthController.changePassword,
+AuthRoutes.put(
+  "/change-pin",
+  validateRequest(changePinValidation),
+  auth(USER_ROLE.admin, USER_ROLE.agent, USER_ROLE.user),
+  AuthController.changePin,
 );
 AuthRoutes.patch(
   "/update-user-status",
-  auth("admin"),
+  auth(USER_ROLE.admin),
   AuthController.updatedUserStatus,
 );
 

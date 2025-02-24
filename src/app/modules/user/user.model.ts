@@ -1,7 +1,8 @@
 import { model, Schema } from "mongoose";
 import bcrypt from "bcrypt";
-import { IUser, UserModel } from "./user.interface";
 import config from "../../config";
+import { IUser, UserModel } from "./user.interface";
+import { USER_ROLE } from "./user.constant";
 
 const UserSchema = new Schema<IUser, UserModel>(
   {
@@ -11,17 +12,28 @@ const UserSchema = new Schema<IUser, UserModel>(
       required: [true, "email is required"],
       unique: true,
     },
-    password: {
+    phone: { type: String, required: [true, "phone is required"], unique: true },
+    pin: {
       type: String,
       required: [true, "Password is required"],
       select: 0,
     },
+    nid: { type: String, required: [true, "nid is required"], unique: true },
+    balance: { type: Number, default: 0 },
     role: {
       type: String,
-      enum: ["user", "admin"],
-      default: "user",
+      enum: [USER_ROLE.user, USER_ROLE.admin, USER_ROLE.agent],
+      default: USER_ROLE.user,
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
     },
     isBlocked: {
+      type: Boolean,
+      default: false,
+    },
+    isDeleted: {
       type: Boolean,
       default: false,
     },
@@ -36,36 +48,33 @@ UserSchema.set("toJSON", {
 });
 
 UserSchema.pre("save", async function (next) {
-  this.password = await bcrypt.hash(
-    this.password,
-    Number(config.bcrypt_salt_rounds),
-  );
+  this.pin = await bcrypt.hash(this.pin, Number(config.bcrypt_salt_rounds));
   next();
 });
 
 UserSchema.post("save", function (doc, next) {
-  doc.password = "";
+  doc.pin = "";
   next();
 });
 
 UserSchema.statics.isUserExistsByCustomEmail = async function (email: string) {
-  return await User.findOne({ email }).select("+password");
+  return await User.findOne({ email }).select("+pin");
 };
 
-UserSchema.statics.isPasswordMatched = async function (
-  plainTextPassword,
-  hashedPassword,
-) {
-  return await bcrypt.compare(plainTextPassword, hashedPassword);
+UserSchema.statics.isUserExistsByCustomPhone = async function (phone: string) {
+  return await User.findOne({ phone }).select("+pin");
 };
 
-UserSchema.statics.isJWTIssuedBeforePasswordChanged = function (
-  passwordChangedTimestamp: Date,
+UserSchema.statics.isPinMatched = async function (plainTextPin, hashedPin) {
+  return await bcrypt.compare(plainTextPin, hashedPin);
+};
+
+UserSchema.statics.isJWTIssuedBeforePinChanged = function (
+  pinChangedTimestamp: Date,
   jwtIssuedTimestamp: number,
 ) {
-  const passwordChangedTime =
-    new Date(passwordChangedTimestamp).getTime() / 1000;
-  return passwordChangedTime > jwtIssuedTimestamp;
+  const pinChangedTime = new Date(pinChangedTimestamp).getTime() / 1000;
+  return pinChangedTime > jwtIssuedTimestamp;
 };
 
 export const User = model<IUser, UserModel>("User", UserSchema);

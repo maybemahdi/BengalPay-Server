@@ -4,10 +4,6 @@ import { UserController } from "./user.controller";
 
 const UserRoutes = Router();
 
-UserRoutes.get(
-  "/",
-  auth("admin"),
-  UserController.getAllUsers,
-);
+UserRoutes.get("/", auth("admin"), UserController.getAllUsers);
 
 export default UserRoutes;

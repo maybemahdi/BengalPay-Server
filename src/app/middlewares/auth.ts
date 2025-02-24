@@ -13,12 +13,12 @@ const auth = (...requiredRoles: IUserRole[]) => {
     const authHeader = req.headers.authorization;
 
     // Check if the token is missing
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (!authHeader) {
       throw new AppError(httpStatus.UNAUTHORIZED, "You are not authorized!");
     }
 
     // Extract the token
-    const token = authHeader.split(" ")[1];
+    const token = authHeader;
 
     // checking if the given token is valid
     let decoded: JwtPayload;
